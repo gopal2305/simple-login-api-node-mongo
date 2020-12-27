@@ -5,7 +5,9 @@ const userService = require('./user.service');
 // routes
 router.post('/authenticate', authenticate);
 router.post('/register', register);
+router.post('/logout', logout);
 router.get('/', getAll);
+router.get('/audit', getAuditUsers);
 router.get('/current', getCurrent);
 router.get('/:id', getById);
 router.put('/:id', update);
@@ -15,7 +17,7 @@ module.exports = router;
 
 function authenticate(req, res, next) {
     userService.authenticate(req.body)
-        .then(user => user ? res.json(user) : res.status(400).json({ message: 'Username or password is incorrect' }))
+        .then(user => user ? res.json(user) : res.status(400).json({ message: 'Username or Password or Role is incorrect' }))
         .catch(err => next(err));
 }
 
@@ -25,9 +27,26 @@ function register(req, res, next) {
         .catch(err => next(err));
 }
 
+function logout(req, res, next) {
+    userService.logout(req.body)
+        .then(() => res.json('Logout successfully!'))
+        .catch(err => next(err));
+}
+
 function getAll(req, res, next) {
     userService.getAll()
         .then(users => res.json(users))
+        .catch(err => next(err));
+}
+
+function getAuditUsers(req, res, next) {
+    userService.getAuditUsers()
+        .then(users => {
+            if (req.user.role.toLowerCase() != 'auditor') {
+                return res.status(401).json({ message: 'Unauthorized' })
+            }
+            res.json(users)
+        })
         .catch(err => next(err));
 }
 

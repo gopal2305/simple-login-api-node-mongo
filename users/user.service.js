@@ -2,30 +2,40 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('_helpers/db');
+const ip = require('ip');
 const User = db.User;
 
 module.exports = {
     authenticate,
     getAll,
+    getAuditUsers,
     getById,
     create,
     update,
+    logout,
     delete: _delete
 };
 
-async function authenticate({ username, password }) {
+async function authenticate({ username, password, role }) {
     const user = await User.findOne({ username });
-    if (user && bcrypt.compareSync(password, user.hash)) {
+    if (user && bcrypt.compareSync(password, user.hash) && user.role == role) {
         const { hash, ...userWithoutHash } = user.toObject();
-        const token = jwt.sign({ sub: user.id }, config.secret);
+        const token = jwt.sign({ sub: user.id, role: user.role }, config.secret);
+        user.loginTime = new Date();
+        user.clientIP = ip.address();
+        user.save();
         return {
             ...userWithoutHash,
-            token
+            token,
         };
     }
 }
 
 async function getAll() {
+    return await User.find().select('-hash');
+}
+
+async function getAuditUsers() {
     return await User.find().select('-hash');
 }
 
@@ -40,13 +50,20 @@ async function create(userParam) {
     }
 
     const user = new User(userParam);
-
+    user.role = userParam.role.toLowerCase();
+    user.clientIP = ip.address();
     // hash password
     if (userParam.password) {
         user.hash = bcrypt.hashSync(userParam.password, 10);
     }
 
     // save user
+    await user.save();
+}
+
+async function logout(userParam) {
+    const user = await User.findOne({ username: userParam.username });
+    user.logoutTime = new Date();
     await user.save();
 }
 
@@ -66,7 +83,6 @@ async function update(id, userParam) {
 
     // copy userParam properties to user
     Object.assign(user, userParam);
-
     await user.save();
 }
 
